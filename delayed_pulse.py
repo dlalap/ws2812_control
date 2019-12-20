@@ -13,9 +13,9 @@ class LedBulb():
         self.b = 0
 
 class LedStrip():
-    def __init__(self):
-        self.pixel_pin = board.D18
-        self.num_pixels = 60
+    def __init__(self, pixel_pin=board.D18, num_pixels=60):
+        self.pixel_pin = pixel_pin
+        self.num_pixels = num_pixels
         self.ORDER = neopixel.GRB
         self.pixels = neopixel.NeoPixel(
             self.pixel_pin,
@@ -27,6 +27,7 @@ class LedStrip():
         self.r = 0
         self.g = 0
         self.b = 0
+        self.active = False
 
     def pulse(self, n):
         self.r = 255
@@ -52,10 +53,11 @@ class LedStrip():
     def pulseThroughStrip(self, delayTime=0.5):
         bulbOn = 0
         continuousGreen = 0
-        continuousBlue = 59
+        continuousBlue = self.num_pixels - 1
         prevTime = 0
         multiplier = 1
-        while True:
+        self.active = True
+        while self.active:
             for bulb in range(len(self.pixels)):
                 self.pixels[bulb] = tuple([max(0, x - 5) for x in self.pixels[bulb]])
 
@@ -71,11 +73,12 @@ class LedStrip():
                 continuousGreen += 1
                 continuousBlue -= 1
 
-                self.pixels[(continuousGreen + 30) % 60] = (
-                    self.pixels[(continuousGreen + 30) % 60][0],
+                self.pixels[(continuousGreen + round(self.num_pixels / 2)) % self.num_pixels] = (
+                    self.pixels[(continuousGreen + round(self.num_pixels / 2)) % self.num_pixels][0],
                     255,
-                    self.pixels[(continuousGreen + 30) % 60][2]
+                    self.pixels[(continuousGreen + round(self.num_pixels / 2)) % self.num_pixels][2]
                 )
+
 
                 self.pixels[(continuousBlue)] = (
                     self.pixels[(continuousBlue)][0],
@@ -83,22 +86,23 @@ class LedStrip():
                     255
                 )
             
-                if bulbOn == 0 or bulbOn >= 59:
+                if bulbOn == 0 or bulbOn >= self.num_pixels - 1:
                     multiplier *= -1
 
-                if continuousGreen > 59:
+                if continuousGreen > self.num_pixels - 1:
                     continuousGreen = 0
 
                 if continuousBlue <= 0:
-                    continuousBlue = 60
+                    continuousBlue = self.num_pixels
                     
             self.pixels.show()
             
             time.sleep(0.001)
+        self.active = False
 
     def singlePulseThroughStrip(self, delayTime=0.5):
         prevTime = 0
-        active = True
+        self.active = True
         bulb = 0
         zeroArray = [(0, 0, 0) for x in range(self.num_pixels)]
         self.pixels[0] = (180, 180, 180)
@@ -118,7 +122,7 @@ class LedStrip():
             except KeyboardInterrupt:
                 active = False
                 self.clearPixels()
-
+        self.active = False
 
 
     def fadeOut(self):
@@ -131,13 +135,13 @@ class LedStrip():
 
     def randomSparks(self, delayTime=0.5):
         prevTime = 0
-        active = True
-        while active:
-            try:
+        self.active = True
+        while self.active:
+            # try:
                 self.fadeOut()
                 if time.time() - prevTime >= delayTime:
                     prevTime = time.time()
-                    randBulb = random.randint(0, 59)
+                    randBulb = random.randint(0, self.num_pixels-1)
                     self.pixels[randBulb] = (
                         195,
                         195,
@@ -146,13 +150,24 @@ class LedStrip():
                 self.pixels.show()
                 time.sleep(0.001)
 
-            except KeyboardInterrupt:
-                self.clearPixels()
-                self.pixels.show()
-                active = False
+            # except KeyboardInterrupt:
+            #     self.clearPixels()
+            #     self.pixels.show()
+
+        self.active = False
 
 if __name__ == '__main__':
-    strip = LedStrip()
-    # strip.pulseThroughStrip(0.01)
-    strip.randomSparks(0.01)
-    # strip.singlePulseThroughStrip(0.01)
+    try:
+        response = requests.get('http://192.168.1.252:5000/off')
+        strip = LedStrip()
+        # strip = LedStrip(board.D12, 12)
+        # strip.pulseThroughStrip(0.01)
+        strip.randomSparks(0.01)
+        # strip.singlePulseThroughStrip(0.01)
+        # strip.pixels.fill((195, 195, 195))
+        # strip.pixels.show()
+    except KeyboardInterrupt:
+        response = requests.get('http://192.168.1.252:5000/on')
+        strip.active = False
+        strip.clearPixels()
+        strip.pixels.show()
